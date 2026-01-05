@@ -1,22 +1,42 @@
 :root {
-  --bg-color: rgba(15, 23, 42, 0.7);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-main: #f8fafc;
-  --text-dim: #94a3b8;
   --up-color: #10b981;
   --down-color: #ef4444;
   --accent-color: #3b82f6;
   
+  /* Dark Theme (Default) */
+  --bg-color: rgba(15, 23, 42, 0.75);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-main: #f8fafc;
+  --text-dim: #94a3b8;
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-hover: rgba(255, 255, 255, 0.08);
+  --footer-bg: rgba(0, 0, 0, 0.3);
+  --input-bg: rgba(255, 255, 255, 0.05);
+
   color-scheme: dark;
   background: transparent;
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+}
+
+:root.light-theme {
+  /* Light Theme */
+  --bg-color: rgba(255, 255, 255, 0.85);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --text-main: #0f172a;
+  --text-dim: #64748b;
+  --card-bg: rgba(0, 0, 0, 0.02);
+  --card-hover: rgba(0, 0, 0, 0.05);
+  --footer-bg: rgba(0, 0, 0, 0.05);
+  --input-bg: rgba(0, 0, 0, 0.04);
+  
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  -webkit-user-select: none; /* 禁止选择，更像原生组件 */
+  -webkit-user-select: none;
 }
 
 body {

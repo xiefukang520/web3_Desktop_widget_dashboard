@@ -1,3 +1,9 @@
-// 预留给渲染进程需要的原生能力，目前为空
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("electronAPI", {
+  hide: () => ipcRenderer.send("app:hide"),
+  minimize: () => ipcRenderer.send("app:minimize"),
+  quit: () => ipcRenderer.send("app:quit")
+});
 
 

@@ -1,4 +1,13 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } from "electron";
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  Tray,
+  Menu,
+  nativeImage,
+  screen,
+  ipcMain
+} from "electron";
 import path from "node:path";
 import url from "node:url";
 import { fileURLToPath } from "node:url";
@@ -11,9 +20,8 @@ let tray = null;
 const isDev = !!process.env.ELECTRON_DEV;
 
 const createTray = () => {
-  const dataUrl =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAUVBMVEUAAAD///////////////////////////////////////////////////////////////////////////////////////////////////////+F4cilAAAAGXRSTlMAAQIDBAUGBwgJCgsMDQ8QERITFBUWFxgYxNrW8AAAAEJJREFUGNOdjEsSgkAQRc+YAQECdVvz/79JdImb0nZnkzE6aZMcJL6rTqLn24+xEHFyOErDaCTQJVhCuY5fUJXxf0w0lg0tBxJzSpYdpkKBqtiN2ohTVp5WabAJ6EgfEtDJj+ynf1UQMTuStXIFru82+5mw0H2sIUAJB2X+9QG9vYb7yVj8gAAAAASUVORK5CYII=";
-  const icon = nativeImage.createFromDataURL(dataUrl);
+  const iconPath = path.join(__dirname, "icon.ico");
+  const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
   tray.setToolTip("Crypto Widget");
   tray.setContextMenu(
@@ -27,17 +35,31 @@ const createTray = () => {
 };
 
 const createWindow = () => {
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  const windowWidth = 380;
+  const windowHeight = 540;
+  const margin = 20;
+  const x = Math.max(margin, screenW - windowWidth - margin);
+  const y = Math.max(margin, Math.floor((screenH - windowHeight) / 2));
+
   win = new BrowserWindow({
-    width: 380,
-    height: 540,
+    width: windowWidth,
+    height: windowHeight,
+    minWidth: 320,
+    minHeight: 420,
+    x,
+    y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: true,
     skipTaskbar: false,
     show: false,
+    icon: path.join(__dirname, "icon.ico"),
     webPreferences: {
-      preload: path.join(__dirname, "preload.js")
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
 
@@ -66,6 +88,18 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   globalShortcut.register("CommandOrControl+Shift+X", toggleWindow);
+
+  ipcMain.on("app:hide", () => {
+    win?.hide();
+  });
+
+  ipcMain.on("app:minimize", () => {
+    win?.minimize();
+  });
+
+  ipcMain.on("app:quit", () => {
+    app.quit();
+  });
 });
 
 app.on("second-instance", () => {

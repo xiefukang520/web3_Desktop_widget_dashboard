@@ -6,14 +6,30 @@
         <span class="pulse-dot"></span>
         <h1>Web3 Ticker</h1>
       </div>
-      <div class="search-trigger" :class="{ active: isSearchOpen }">
-        <input 
-          v-model="search" 
-          placeholder="Search Symbol..." 
-          @focus="isSearchOpen = true"
-          @blur="handleSearchBlur"
-        />
-        <kbd v-if="!isSearchOpen">Ctrl K</kbd>
+      <div class="header-actions">
+        <div class="search-trigger" :class="{ active: isSearchOpen }">
+          <input
+            v-model="search"
+            placeholder="Search Symbol..."
+            @focus="isSearchOpen = true"
+            @blur="handleSearchBlur"
+          />
+          <kbd v-if="!isSearchOpen">Ctrl K</kbd>
+        </div>
+        <div class="window-controls">
+          <button class="ctrl-btn" @click="toggleTheme" :title="isDark ? 'Switch to Light' : 'Switch to Dark'">
+            <span>{{ isDark ? '☀' : '🌙' }}</span>
+          </button>
+          <button class="ctrl-btn" @click="handleHide" title="Hide">
+            <span>–</span>
+          </button>
+          <button class="ctrl-btn" @click="handleMinimize" title="Minimize">
+            <span>▭</span>
+          </button>
+          <button class="ctrl-btn danger" @click="handleQuit" title="Quit">
+            <span>×</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -101,13 +117,27 @@ type Price = { last: number; changePct: number };
 type SymbolItem = WatchItem & { symbol: string };
 
 const ICON_BASE = "https://app.hyperliquid.xyz/coins/";
-const search = ref("");
-const isSearchOpen = ref(false);
-const watchlist = ref<WatchItem[]>([
+const STORAGE_KEY = "cryptoWidget.watchlist";
+const THEME_KEY = "cryptoWidget.theme";
+const DEFAULT_WATCHLIST: WatchItem[] = [
   { id: "BTCUSDT", base: "BTC", quote: "USDT", ex: "binance" },
   { id: "ETHUSDT", base: "ETH", quote: "USDT", ex: "binance" },
   { id: "SOL-USDT", base: "SOL", quote: "USDT", ex: "okx" }
-]);
+];
+declare global {
+  interface Window {
+    electronAPI?: {
+      hide?: () => void;
+      minimize?: () => void;
+      quit?: () => void;
+    };
+  }
+}
+
+const search = ref("");
+const isSearchOpen = ref(false);
+const isDark = ref(true);
+const watchlist = ref<WatchItem[]>([...DEFAULT_WATCHLIST]);
 
 const prices = reactive<Record<string, Price>>({});
 const flashClass = reactive<Record<string, string>>({});
@@ -144,7 +174,55 @@ const handleSearchBlur = () => {
   setTimeout(() => (isSearchOpen.value = false), 200);
 };
 
+// Window controls
+const handleHide = () => window.electronAPI?.hide?.();
+const handleMinimize = () => window.electronAPI?.minimize?.();
+const handleQuit = () => window.electronAPI?.quit?.();
+
+const toggleTheme = () => {
+  isDark.value = !isDark.value;
+  applyTheme();
+  localStorage.setItem(THEME_KEY, isDark.value ? "dark" : "light");
+};
+
+const applyTheme = () => {
+  if (isDark.value) {
+    document.documentElement.classList.remove("light-theme");
+  } else {
+    document.documentElement.classList.add("light-theme");
+  }
+};
+
 // Data Logic
+const loadWatchlist = () => {
+  try {
+    // Load Theme
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme) {
+      isDark.value = savedTheme === "dark";
+      applyTheme();
+    }
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        watchlist.value = parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load watchlist", e);
+  }
+};
+
+const saveWatchlist = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist.value));
+  } catch (e) {
+    console.error("Failed to save watchlist", e);
+  }
+};
+
 const searchResults = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return [];
@@ -230,12 +308,20 @@ const connectOkx = () => {
   };
 };
 
-watch(() => watchlist.value.length, () => {
-  connectBinance();
-  connectOkx();
-}, { immediate: true });
+watch(
+  watchlist,
+  () => {
+    connectBinance();
+    connectOkx();
+    saveWatchlist();
+  },
+  { immediate: true, deep: true }
+);
 
-onMounted(() => loadSymbols());
+onMounted(() => {
+  loadWatchlist();
+  loadSymbols();
+});
 onBeforeUnmount(() => {
   binanceWs.value?.close();
   okxWs.value?.close();
@@ -256,6 +342,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  -webkit-app-region: drag;
 }
 
 /* Header */
@@ -265,6 +352,12 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border-color);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .title-group {
@@ -300,11 +393,12 @@ h1 {
   position: relative;
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
   border-radius: 8px;
   padding: 4px 8px;
   border: 1px solid transparent;
   transition: all 0.3s;
+  -webkit-app-region: no-drag;
 }
 
 .search-trigger.active {
@@ -334,17 +428,49 @@ kbd {
   color: var(--text-dim);
 }
 
+.window-controls {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.ctrl-btn {
+  width: 28px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.ctrl-btn:hover {
+  background: var(--card-hover);
+  border-color: var(--text-dim);
+}
+
+.ctrl-btn.danger {
+  color: #ef4444;
+}
+
 /* Search Overlay */
 .search-overlay {
   position: absolute;
   top: 60px;
   right: 20px;
   width: 200px;
-  background: #1e293b;
+  background: var(--bg-color);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   z-index: 100;
   box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  -webkit-app-region: no-drag;
 }
 
 .search-item {
@@ -360,6 +486,14 @@ kbd {
   background: rgba(255,255,255,0.05);
 }
 
+.tiny-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: var(--input-bg);
+}
+
 .s-pair { font-size: 13px; flex: 1; }
 .s-ex { font-size: 10px; color: var(--text-dim); }
 
@@ -368,6 +502,7 @@ kbd {
   padding: 12px;
   flex: 1;
   overflow-y: auto;
+  -webkit-app-region: no-drag;
 }
 
 .price-card {
@@ -375,15 +510,16 @@ kbd {
   align-items: center;
   padding: 12px 16px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--card-bg);
   margin-bottom: 8px;
   transition: all 0.2s;
   position: relative;
   border: 1px solid transparent;
+  -webkit-app-region: no-drag;
 }
 
 .price-card:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--card-hover);
   border-color: var(--border-color);
 }
 
@@ -402,7 +538,7 @@ kbd {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
 }
 
 .ex-badge {
@@ -472,6 +608,7 @@ kbd {
   cursor: pointer;
   padding: 4px;
   transition: opacity 0.2s;
+  -webkit-app-region: no-drag;
 }
 
 .price-card:hover .remove-btn {
@@ -486,10 +623,11 @@ kbd {
 /* Footer */
 .widget-footer {
   padding: 8px 20px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--footer-bg);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  -webkit-app-region: no-drag;
 }
 
 .status-bar {
@@ -516,6 +654,11 @@ kbd {
 .shortcuts {
   font-size: 10px;
   color: var(--text-dim);
+}
+
+/* Keep interactive elements clickable in a draggable window */
+input, button, .search-item {
+  -webkit-app-region: no-drag;
 }
 
 /* Transitions */
