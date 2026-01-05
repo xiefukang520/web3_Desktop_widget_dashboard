@@ -1,0 +1,42 @@
+{
+  "name": "crypto-widget",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:ui": "vite",
+    "dev:electron": "cross-env ELECTRON_DEV=1 electron electron/main.js",
+    "dev:app": "pnpm run dev:ui & pnpm run dev:electron",
+    "build": "vite build",
+    "build:app": "pnpm run build && electron-builder",
+    "preview": "vite preview"
+  },
+  "main": "electron/main.js",
+  "dependencies": {
+    "vue": "^3.5.11"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.4"
+  },
+  "build": {
+    "appId": "com.example.cryptowidget",
+    "productName": "CryptoWidget",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "buildResources": "electron"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
+

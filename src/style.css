@@ -1,0 +1,54 @@
+:root {
+  --bg-color: rgba(15, 23, 42, 0.7);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-main: #f8fafc;
+  --text-dim: #94a3b8;
+  --up-color: #10b981;
+  --down-color: #ef4444;
+  --accent-color: #3b82f6;
+  
+  color-scheme: dark;
+  background: transparent;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-user-select: none; /* 禁止选择，更像原生组件 */
+}
+
+body {
+  background: transparent;
+  overflow: hidden;
+  height: 100vh;
+}
+
+.page {
+  padding: 12px;
+  height: 100%;
+}
+
+/* 隐藏滚动条 */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+@keyframes price-flash-up {
+  0% { background: rgba(16, 185, 129, 0.2); }
+  100% { background: transparent; }
+}
+@keyframes price-flash-down {
+  0% { background: rgba(239, 68, 68, 0.2); }
+  100% { background: transparent; }
+}
+
+.flash-up { animation: price-flash-up 0.8s ease-out; }
+.flash-down { animation: price-flash-down 0.8s ease-out; }
+
+
