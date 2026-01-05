@@ -175,9 +175,32 @@ const handleSearchBlur = () => {
 };
 
 // Window controls
-const handleHide = () => window.electronAPI?.hide?.();
-const handleMinimize = () => window.electronAPI?.minimize?.();
-const handleQuit = () => window.electronAPI?.quit?.();
+const handleHide = () => {
+  console.log("Attempting to hide window...");
+  if (window.electronAPI?.hide) {
+    window.electronAPI.hide();
+  } else {
+    console.error("electronAPI.hide is not available");
+  }
+};
+
+const handleMinimize = () => {
+  console.log("Attempting to minimize window...");
+  if (window.electronAPI?.minimize) {
+    window.electronAPI.minimize();
+  } else {
+    console.error("electronAPI.minimize is not available");
+  }
+};
+
+const handleQuit = () => {
+  console.log("Attempting to quit app...");
+  if (window.electronAPI?.quit) {
+    window.electronAPI.quit();
+  } else {
+    console.error("electronAPI.quit is not available");
+  }
+};
 
 const toggleTheme = () => {
   isDark.value = !isDark.value;
@@ -657,8 +680,9 @@ kbd {
 }
 
 /* Keep interactive elements clickable in a draggable window */
-input, button, .search-item {
-  -webkit-app-region: no-drag;
+input, button, .search-item, .ctrl-btn {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
 }
 
 /* Transitions */
