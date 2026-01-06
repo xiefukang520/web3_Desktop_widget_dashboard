@@ -6,7 +6,8 @@ import {
   Menu,
   nativeImage,
   screen,
-  ipcMain
+  ipcMain,
+  shell
 } from "electron";
 import path from "node:path";
 import url from "node:url";
@@ -99,6 +100,25 @@ app.whenReady().then(() => {
 
   ipcMain.on("app:quit", () => {
     app.quit();
+  });
+
+  ipcMain.on("app:open-external", (event, url) => {
+    shell.openExternal(url);
+  });
+
+  ipcMain.on("app:set-always-on-top", (event, flag) => {
+    win?.setAlwaysOnTop(flag);
+  });
+
+  ipcMain.on("app:toggle-compact", (event, isCompact) => {
+    if (!win) return;
+    const { x, y, width, height } = win.getBounds();
+    const windowWidth = isCompact ? 220 : 380;
+    const windowHeight = isCompact ? 140 : 540;
+    
+    // Maintain top-right corner if possible, or just resize
+    win.setMinimumSize(isCompact ? 180 : 320, isCompact ? 100 : 420);
+    win.setSize(windowWidth, windowHeight, true);
   });
 });
 

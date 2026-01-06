@@ -1,12 +1,48 @@
 <template>
-  <div class="widget-container">
-    <!-- 头部：标题与搜索入口 -->
-    <header class="widget-header">
-      <div class="title-group">
-        <span class="pulse-dot"></span>
-        <h1>Web3 Ticker</h1>
+  <div class="widget-container" :class="{ compact: isCompactMode, 'is-mini': isCompactMode }">
+    <!-- Mini 模式：极简行情条 -->
+    <template v-if="isCompactMode">
+      <div class="mini-bar" @dblclick="toggleCompactMode">
+        <div class="mini-left">
+          <span class="mini-title">W3T</span>
+          <div class="mini-items">
+            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item">
+              <span class="mini-symbol">{{ item.base }}</span>
+              <span class="mini-price mono">{{ formatPrice(prices[item.id]?.last) }}</span>
+              <span class="mini-change" :class="getPctClass(prices[item.id]?.changePct)">
+                {{ formatPct(prices[item.id]?.changePct) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="mini-actions">
+          <button class="mini-btn primary" title="返回全模式" @click="toggleCompactMode">⤢</button>
+          <button class="mini-btn" title="隐藏" @click="handleHide">–</button>
+          <button class="mini-btn danger" title="关闭" @click="handleQuit">×</button>
+        </div>
       </div>
-      <div class="header-actions">
+    </template>
+
+    <!-- 全模式 -->
+    <template v-else>
+      <header class="widget-header">
+        <div class="title-group">
+          <span class="pulse-dot"></span>
+          <h1>Web3 Ticker</h1>
+        </div>
+        <div class="header-actions">
+          <div class="window-controls">
+            <button class="ctrl-btn" @click="handleHide" title="Hide">
+              <span>–</span>
+            </button>
+            <button class="ctrl-btn danger" @click="handleQuit" title="Quit">
+              <span>×</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="search-section">
         <div class="search-trigger" :class="{ active: isSearchOpen }">
           <input
             v-model="search"
@@ -16,95 +52,91 @@
           />
           <kbd v-if="!isSearchOpen">Ctrl K</kbd>
         </div>
-        <div class="window-controls">
-          <button class="ctrl-btn" @click="toggleTheme" :title="isDark ? 'Switch to Light' : 'Switch to Dark'">
+      </div>
+
+      <Transition name="fade">
+        <div v-if="isSearchOpen && searchResults.length" class="search-overlay">
+          <div 
+            v-for="s in searchResults" 
+            :key="s.id" 
+            class="search-item"
+            @mousedown="addWatch(s)"
+          >
+            <img :src="iconUrl(s.base)" class="tiny-icon" @error="handleIconError" />
+            <span class="s-pair">{{ s.base }}/{{ s.quote }}</span>
+            <span class="s-ex">{{ s.ex }}</span>
+          </div>
+        </div>
+      </Transition>
+
+      <main class="price-list">
+        <TransitionGroup name="list">
+          <div 
+            v-for="item in watchlist" 
+            :key="item.id" 
+            class="price-card"
+            :class="flashClass[item.id]"
+          >
+            <div class="token-info">
+              <div class="icon-stack">
+                <img :src="iconUrl(item.base)" class="main-icon" @error="handleIconError" />
+                <div class="ex-badge" :class="item.ex">{{ item.ex[0].toUpperCase() }}</div>
+              </div>
+              <div class="name-box">
+                <span class="base">{{ item.base }}</span>
+                <span class="quote">/{{ item.quote }}</span>
+              </div>
+            </div>
+
+            <div class="value-box">
+              <div class="price-val mono">
+                {{ formatPrice(prices[item.id]?.last) }}
+              </div>
+              <div 
+                class="change-val" 
+                :class="getPctClass(prices[item.id]?.changePct)"
+              >
+                {{ formatPct(prices[item.id]?.changePct) }}
+              </div>
+            </div>
+
+            <button class="remove-btn" @click="remove(item.id)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </TransitionGroup>
+
+        <div v-if="!watchlist.length" class="empty-state">
+          <div class="empty-icon">🪙</div>
+          <p>No symbols tracked</p>
+        </div>
+      </main>
+
+      <footer class="widget-footer">
+        <div class="external-links">
+          <button class="link-btn" @click="openLink('https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot')" title="Binance">
+            <img src="https://bin.bnbstatic.com/static/images/common/favicon.ico" alt="Binance" />
+          </button>
+          <button class="link-btn" @click="openLink('https://www.okx.com/zh-hans/markets/prices')" title="OKX">
+            <img src="https://www.okx.com/favicon.ico" alt="OKX" />
+          </button>
+        </div>
+
+        <div class="footer-actions">
+          <button class="ctrl-btn-f" @click="toggleAlwaysOnTop" :class="{ active: isAlwaysOnTop }" title="Toggle Always on Top">
+            <span>📌</span>
+          </button>
+          <button class="ctrl-btn-f" @click="toggleTheme" :title="isDark ? 'Light' : 'Dark'">
             <span>{{ isDark ? '☀' : '🌙' }}</span>
           </button>
-          <button class="ctrl-btn" @click="handleHide" title="Hide">
-            <span>–</span>
-          </button>
-          <button class="ctrl-btn" @click="handleMinimize" title="Minimize">
-            <span>▭</span>
-          </button>
-          <button class="ctrl-btn danger" @click="handleQuit" title="Quit">
-            <span>×</span>
+          <button class="ctrl-btn-f compact-toggle" @click="toggleCompactMode" title="进入缩略模式">
+            <span>⤢</span>
           </button>
         </div>
-      </div>
-    </header>
-
-    <!-- 搜索结果浮层 -->
-    <Transition name="fade">
-      <div v-if="isSearchOpen && searchResults.length" class="search-overlay">
-        <div 
-          v-for="s in searchResults" 
-          :key="s.id" 
-          class="search-item"
-          @mousedown="addWatch(s)"
-        >
-          <img :src="iconUrl(s.base)" class="tiny-icon" @error="handleIconError" />
-          <span class="s-pair">{{ s.base }}/{{ s.quote }}</span>
-          <span class="s-ex">{{ s.ex }}</span>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- 实时列表 -->
-    <main class="price-list">
-      <TransitionGroup name="list">
-        <div 
-          v-for="item in watchlist" 
-          :key="item.id" 
-          class="price-card"
-          :class="flashClass[item.id]"
-        >
-          <div class="token-info">
-            <div class="icon-stack">
-              <img :src="iconUrl(item.base)" class="main-icon" @error="handleIconError" />
-              <div class="ex-badge" :class="item.ex">{{ item.ex[0].toUpperCase() }}</div>
-            </div>
-            <div class="name-box">
-              <span class="base">{{ item.base }}</span>
-              <span class="quote">/{{ item.quote }}</span>
-            </div>
-          </div>
-
-          <div class="value-box">
-            <div class="price-val mono">
-              {{ formatPrice(prices[item.id]?.last) }}
-            </div>
-            <div 
-              class="change-val" 
-              :class="getPctClass(prices[item.id]?.changePct)"
-            >
-              {{ formatPct(prices[item.id]?.changePct) }}
-            </div>
-          </div>
-
-          <button class="remove-btn" @click="remove(item.id)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </TransitionGroup>
-
-      <div v-if="!watchlist.length" class="empty-state">
-        <div class="empty-icon">🪙</div>
-        <p>No symbols tracked</p>
-        <span>Search above to add assets</span>
-      </div>
-    </main>
-
-    <footer class="widget-footer">
-      <div class="status-bar">
-        <span class="live-tag">LIVE</span>
-        <span class="update-ts">{{ lastUpdate }}</span>
-      </div>
-      <div class="shortcuts">
-        <span>Alt + H to Hide</span>
-      </div>
-    </footer>
+      </footer>
+    </template>
   </div>
 </template>
 
@@ -130,6 +162,9 @@ declare global {
       hide?: () => void;
       minimize?: () => void;
       quit?: () => void;
+      openExternal?: (url: string) => void;
+      setAlwaysOnTop?: (flag: boolean) => void;
+      toggleCompact?: (isCompact: boolean) => void;
     };
   }
 }
@@ -137,6 +172,8 @@ declare global {
 const search = ref("");
 const isSearchOpen = ref(false);
 const isDark = ref(true);
+const isAlwaysOnTop = ref(true);
+const isCompactMode = ref(false);
 const watchlist = ref<WatchItem[]>([...DEFAULT_WATCHLIST]);
 
 const prices = reactive<Record<string, Price>>({});
@@ -200,6 +237,20 @@ const handleQuit = () => {
   } else {
     console.error("electronAPI.quit is not available");
   }
+};
+
+const toggleAlwaysOnTop = () => {
+  isAlwaysOnTop.value = !isAlwaysOnTop.value;
+  window.electronAPI?.setAlwaysOnTop?.(isAlwaysOnTop.value);
+};
+
+const toggleCompactMode = () => {
+  isCompactMode.value = !isCompactMode.value;
+  window.electronAPI?.toggleCompact?.(isCompactMode.value);
+};
+
+const openLink = (url: string) => {
+  window.electronAPI?.openExternal?.(url);
 };
 
 const toggleTheme = () => {
@@ -368,25 +419,158 @@ onBeforeUnmount(() => {
   -webkit-app-region: drag;
 }
 
+/* 极简缩略模式 */
+.widget-container.is-mini {
+  min-height: 60px;
+  max-width: 280px;
+  border-radius: 16px;
+  background: var(--mini-bg, rgba(15, 23, 42, 0.9));
+  border: 1px solid var(--mini-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+.mini-bar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  gap: 10px;
+  -webkit-app-region: drag;
+}
+
+.mini-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-title {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--accent-color);
+  font-weight: 800;
+}
+
+.mini-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mini-symbol {
+  font-weight: 800;
+  color: var(--text-main);
+  min-width: 34px;
+}
+
+.mini-price {
+  color: var(--text-main);
+  font-weight: 700;
+  min-width: 80px;
+}
+
+.mini-change {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mini-actions {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.mini-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.mini-btn.primary {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #0b1223;
+  font-weight: 800;
+}
+
+.mini-btn:hover {
+  background: var(--card-hover);
+  border-color: var(--text-dim);
+}
+
+.mini-btn.danger:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
 /* Header */
 .widget-header {
-  padding: 16px 20px;
+  padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border-color);
 }
 
+.search-section {
+  padding: 12px 16px 4px;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
 .title-group {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.compact-title {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--accent-color);
+}
+
+.external-links {
+  display: flex;
+  gap: 8px;
+}
+
+.link-btn {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.link-btn:hover {
+  background: var(--card-hover);
+  transform: translateY(-1px);
+}
+
+.link-btn img {
+  width: 14px;
+  height: 14px;
 }
 
 .pulse-dot {
@@ -453,8 +637,44 @@ kbd {
 
 .window-controls {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   -webkit-app-region: no-drag;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.footer-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.ctrl-btn-f {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.ctrl-btn-f:hover {
+  background: var(--card-hover);
+}
+
+.ctrl-btn-f.active {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
 }
 
 .ctrl-btn {
@@ -645,27 +865,28 @@ kbd {
 
 /* Footer */
 .widget-footer {
-  padding: 8px 20px;
+  padding: 10px 16px;
   background: var(--footer-bg);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-top: 1px solid var(--border-color);
   -webkit-app-region: no-drag;
 }
 
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .live-tag {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   color: var(--up-color);
   border: 1px solid var(--up-color);
-  padding: 1px 4px;
-  border-radius: 4px;
+  padding: 0px 3px;
+  border-radius: 3px;
 }
 
 .update-ts {
@@ -680,7 +901,7 @@ kbd {
 }
 
 /* Keep interactive elements clickable in a draggable window */
-input, button, .search-item, .ctrl-btn {
+input, button, .search-item, .ctrl-btn, .ctrl-btn-f, .link-btn {
   -webkit-app-region: no-drag !important;
   pointer-events: auto !important;
 }
