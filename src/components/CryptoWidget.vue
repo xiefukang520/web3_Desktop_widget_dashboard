@@ -198,6 +198,7 @@ type SymbolItem = WatchItem & { symbol: string };
 const ICON_BASE = "https://app.hyperliquid.xyz/coins/";
 const STORAGE_KEY = "cryptoWidget.watchlist";
 const THEME_KEY = "cryptoWidget.theme";
+const ALERT_KEY = "cryptoWidget.alerts";
 const DEFAULT_WATCHLIST: WatchItem[] = [
   { id: "BTCUSDT", base: "BTC", quote: "USDT", ex: "binance" },
   { id: "ETHUSDT", base: "ETH", quote: "USDT", ex: "binance" },
@@ -365,7 +366,7 @@ const clearAlert = (coinId: string, idx: number) => {
   const list = alertStates[coinId] || [];
   list.splice(idx, 1);
   alertStates[coinId] = [...list];
-  saveWatchlist();
+  localStorage.setItem(ALERT_KEY, JSON.stringify(alertStates));
   alertListForModal.value = [...(alertStates[currentAlertId.value] || [])];
 };
 
@@ -373,7 +374,7 @@ const acknowledgeAlerts = (coinId: string) => {
   const list = alertStates[coinId] || [];
   list.forEach(a => (a.triggered = false));
   alertStates[coinId] = [...list];
-  saveWatchlist();
+  localStorage.setItem(ALERT_KEY, JSON.stringify(alertStates));
   alertListForModal.value = [...(alertStates[currentAlertId.value] || [])];
 };
 
@@ -408,6 +409,13 @@ const loadWatchlist = () => {
         watchlist.value = parsed;
       }
     }
+    const savedAlerts = localStorage.getItem(ALERT_KEY);
+    if (savedAlerts) {
+      const parsed = JSON.parse(savedAlerts);
+      Object.keys(parsed || {}).forEach(k => {
+        alertStates[k] = parsed[k];
+      });
+    }
   } catch (e) {
     console.error("Failed to load watchlist", e);
   }
@@ -416,6 +424,7 @@ const loadWatchlist = () => {
 const saveWatchlist = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist.value));
+    localStorage.setItem(ALERT_KEY, JSON.stringify(alertStates));
   } catch (e) {
     console.error("Failed to save watchlist", e);
   }
@@ -435,10 +444,12 @@ const addWatch = (item: WatchItem) => {
   }
   search.value = "";
   isSearchOpen.value = false;
+  saveWatchlist();
 };
 
 const remove = (id: string) => {
   watchlist.value = watchlist.value.filter(w => w.id !== id);
+  saveWatchlist();
 };
 
 // WebSocket Handlers
