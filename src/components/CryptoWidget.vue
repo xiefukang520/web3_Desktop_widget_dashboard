@@ -76,46 +76,54 @@
       </Transition>
 
       <main class="price-list">
-        <TransitionGroup name="list">
-          <div 
-            v-for="item in watchlist" 
-            :key="item.id" 
-            class="price-card"
-            :class="[flashClass[item.id], alertClass(item.id)]"
-          >
-            <div class="token-info">
-              <div class="icon-stack">
-                <img :src="iconUrl(item.base)" class="main-icon" @error="handleIconError" />
-                <div class="ex-badge" :class="item.ex">{{ item.ex[0].toUpperCase() }}</div>
+        <Draggable
+          v-model="watchlist"
+          item-key="id"
+          handle=".drag-handle"
+          ghost-class="drag-ghost"
+          animation="200"
+          @end="onDragEnd"
+        >
+          <template #item="{ element }">
+            <div 
+              class="price-card"
+              :class="[flashClass[element.id], alertClass(element.id)]"
+            >
+              <div class="drag-handle" title="拖拽排序">☰</div>
+              <div class="token-info">
+                <div class="icon-stack">
+                  <img :src="iconUrl(element.base)" class="main-icon" @error="handleIconError" />
+                  <div class="ex-badge" :class="element.ex">{{ element.ex[0].toUpperCase() }}</div>
+                </div>
+                <div class="name-box">
+                  <span class="base">{{ element.base }}</span>
+                  <span class="quote">/{{ element.quote }}</span>
+                </div>
               </div>
-              <div class="name-box">
-                <span class="base">{{ item.base }}</span>
-                <span class="quote">/{{ item.quote }}</span>
-              </div>
-            </div>
 
-            <div class="value-box">
-              <div class="price-val mono">
-                {{ formatPrice(prices[item.id]?.last) }}
+              <div class="value-box">
+                <div class="price-val mono">
+                  {{ formatPrice(prices[element.id]?.last) }}
+                </div>
+                <div 
+                  class="change-val" 
+                  :class="getPctClass(prices[element.id]?.changePct)"
+                >
+                  {{ formatPct(prices[element.id]?.changePct) }}
+                </div>
               </div>
-              <div 
-                class="change-val" 
-                :class="getPctClass(prices[item.id]?.changePct)"
-              >
-                {{ formatPct(prices[item.id]?.changePct) }}
-              </div>
-            </div>
 
-            <button class="remove-btn" @click="remove(item.id)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-            <button class="bell-btn" @click.stop="openAlertModal(item.id)" title="设置预警">
-              🔔
-            </button>
-          </div>
-        </TransitionGroup>
+              <button class="remove-btn" @click="remove(element.id)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <button class="bell-btn" @click.stop="openAlertModal(element.id)" title="设置预警">
+                🔔
+              </button>
+            </div>
+          </template>
+        </Draggable>
 
         <div v-if="!watchlist.length" class="empty-state">
           <div class="empty-icon">🪙</div>
@@ -189,6 +197,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import Draggable from "vuedraggable";
 
 type Exchange = "binance" | "okx";
 type WatchItem = { id: string; base: string; quote: string; ex: Exchange };
@@ -539,6 +548,10 @@ watch(
   },
   { immediate: true, deep: true }
 );
+
+const onDragEnd = () => {
+  saveWatchlist();
+};
 
 onMounted(() => {
   loadWatchlist();
@@ -1179,6 +1192,23 @@ kbd {
 
 .price-card:hover .bell-btn {
   opacity: 1;
+}
+
+.drag-handle {
+  width: 18px;
+  color: var(--text-dim);
+  cursor: grab;
+  margin-right: 8px;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-ghost {
+  opacity: 0.6;
 }
 
 /* Footer */
