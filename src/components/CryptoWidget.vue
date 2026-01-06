@@ -1,12 +1,18 @@
 <template>
-  <div class="widget-container" :class="{ compact: isCompactMode, 'is-mini': isCompactMode }">
+  <div
+    class="widget-container"
+    :class="[
+      { compact: isCompactMode, 'is-mini': isCompactMode },
+      isCompactMode ? alertContainerClass : ''
+    ]"
+  >
     <!-- Mini 模式：极简行情条 -->
     <template v-if="isCompactMode">
       <div class="mini-bar" @dblclick="toggleCompactMode">
-        <div class="mini-left" :class="alertClass(watchlist[0]?.id)">
+        <div class="mini-left">
           <span class="mini-title">W3T</span>
           <div class="mini-items">
-            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item" :class="alertClass(item.id)">
+            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item">
               <span class="mini-symbol">{{ item.base }}</span>
               <span class="mini-price mono">{{ formatPrice(prices[item.id]?.last) }}</span>
               <span class="mini-change" :class="getPctClass(prices[item.id]?.changePct)">
@@ -146,19 +152,22 @@
   <div v-if="alertModalVisible" class="modal-backdrop" @click.self="alertModalVisible = false">
     <div class="modal">
       <h3>价格预警</h3>
-      <p class="modal-sub">当价格高于或低于指定值时闪烁提示</p>
+      <p class="modal-sub">设置高于/低于阈值的闪烁提示，可多条预警</p>
+
       <div v-if="alertListForModal.length" class="modal-list">
         <div class="modal-alert-item" v-for="(a, idx) in alertListForModal" :key="idx">
-          <span class="pill" :class="a.direction === 'above' ? 'pill-up' : 'pill-down'">
-            {{ a.direction === 'above' ? '高于' : '低于' }} {{ a.threshold }}
+          <div class="pill" :class="a.direction === 'above' ? 'pill-up' : 'pill-down'">
+            <span class="pill-label">{{ a.direction === 'above' ? '高于' : '低于' }}</span>
+            <span class="pill-value">{{ a.threshold }}</span>
             <span v-if="a.triggered" class="pill-dot">●</span>
-          </span>
+          </div>
           <div class="modal-alert-actions">
-            <button class="mini-btn primary" @click="acknowledgeAlerts(currentAlertId || '')">停止闪烁</button>
-            <button class="mini-btn danger" @click="clearAlert(currentAlertId || '', idx)">删除</button>
+            <button class="mini-btn primary" @click="acknowledgeAlerts(currentAlertId || '')">停</button>
+            <button class="mini-btn danger" @click="clearAlert(currentAlertId || '', idx)">删</button>
           </div>
         </div>
       </div>
+
       <div class="modal-row">
         <label>方向</label>
         <div class="modal-switch">
@@ -334,6 +343,23 @@ const alertClass = (id: string) => {
   if (anyBelow) return "alert-below";
   return "";
 };
+
+const alertContainerClass = computed(() => {
+  let above = false;
+  let below = false;
+  Object.values(alertStates).forEach(list => {
+    (list || []).forEach(a => {
+      if (a.triggered) {
+        if (a.direction === "above") above = true;
+        if (a.direction === "below") below = true;
+      }
+    });
+  });
+  if (above && below) return "alert-mixed";
+  if (above) return "alert-above";
+  if (below) return "alert-below";
+  return "";
+});
 
 const clearAlert = (coinId: string, idx: number) => {
   const list = alertStates[coinId] || [];
@@ -656,6 +682,10 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(239, 68, 68, 0.6) !important;
   animation: alertGlowRed 1.4s ease-in-out infinite;
 }
+.alert-mixed {
+  border: 1px solid rgba(59, 130, 246, 0.6) !important;
+  animation: alertGlowGreen 1.4s ease-in-out infinite, alertGlowRed 1.4s ease-in-out infinite alternate;
+}
 
 /* Header */
 .widget-header {
@@ -845,6 +875,46 @@ kbd {
   margin: 0 0 12px;
   font-size: 12px;
   color: var(--text-dim);
+}
+.modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.modal-alert-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+}
+.pill-up {
+  border-color: rgba(16,185,129,0.5);
+  background: rgba(16,185,129,0.12);
+}
+.pill-down {
+  border-color: rgba(239,68,68,0.5);
+  background: rgba(239,68,68,0.12);
+}
+.pill-label { font-weight: 700; }
+.pill-value { font-weight: 700; }
+.pill-dot { color: var(--accent-color); font-size: 12px; }
+.modal-alert-actions {
+  display: flex;
+  gap: 6px;
 }
 .modal-row {
   display: flex;
