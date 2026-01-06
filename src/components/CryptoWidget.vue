@@ -12,7 +12,12 @@
         <div class="mini-left">
           <span class="mini-title">W3T</span>
           <div class="mini-items">
-            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item">
+            <div
+              v-for="item in watchlist.slice(0, 3)"
+              :key="item.id"
+              class="mini-item"
+              :class="flashClass[item.id]"
+            >
               <span class="mini-symbol">{{ item.base }}</span>
               <span class="mini-price mono">{{ formatPrice(prices[item.id]?.last) }}</span>
               <span class="mini-change" :class="getPctClass(prices[item.id]?.changePct)">
@@ -582,7 +587,7 @@ onBeforeUnmount(() => {
 
 /* 极简缩略模式 */
 .widget-container.is-mini {
-  min-height: 60px;
+  min-height: 80px;
   max-width: 280px;
   border-radius: 16px;
   background: var(--mini-bg, rgba(15, 23, 42, 0.9));
@@ -591,11 +596,11 @@ onBeforeUnmount(() => {
 }
 
 .mini-bar {
-  height: 60px;
+  min-height: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 6px 12px;
   gap: 10px;
   -webkit-app-region: drag;
 }
