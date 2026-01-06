@@ -3,10 +3,10 @@
     <!-- Mini 模式：极简行情条 -->
     <template v-if="isCompactMode">
       <div class="mini-bar" @dblclick="toggleCompactMode">
-        <div class="mini-left">
+        <div class="mini-left" :class="alertClass(watchlist[0]?.id)">
           <span class="mini-title">W3T</span>
           <div class="mini-items">
-            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item">
+            <div v-for="item in watchlist.slice(0, 2)" :key="item.id" class="mini-item" :class="alertClass(item.id)">
               <span class="mini-symbol">{{ item.base }}</span>
               <span class="mini-price mono">{{ formatPrice(prices[item.id]?.last) }}</span>
               <span class="mini-change" :class="getPctClass(prices[item.id]?.changePct)">
@@ -75,7 +75,7 @@
             v-for="item in watchlist" 
             :key="item.id" 
             class="price-card"
-            :class="flashClass[item.id]"
+            :class="[flashClass[item.id], alertClass(item.id)]"
           >
             <div class="token-info">
               <div class="icon-stack">
@@ -104,6 +104,9 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
+            </button>
+            <button class="bell-btn" @click.stop="openAlertModal(item.id)" title="设置预警">
+              🔔
             </button>
           </div>
         </TransitionGroup>
@@ -137,6 +140,41 @@
         </div>
       </footer>
     </template>
+  </div>
+
+  <!-- 预警配置弹窗 -->
+  <div v-if="alertModalVisible" class="modal-backdrop" @click.self="alertModalVisible = false">
+    <div class="modal">
+      <h3>价格预警</h3>
+      <p class="modal-sub">当价格高于或低于指定值时闪烁提示</p>
+      <div v-if="alertListForModal.length" class="modal-list">
+        <div class="modal-alert-item" v-for="(a, idx) in alertListForModal" :key="idx">
+          <span class="pill" :class="a.direction === 'above' ? 'pill-up' : 'pill-down'">
+            {{ a.direction === 'above' ? '高于' : '低于' }} {{ a.threshold }}
+            <span v-if="a.triggered" class="pill-dot">●</span>
+          </span>
+          <div class="modal-alert-actions">
+            <button class="mini-btn primary" @click="acknowledgeAlerts(currentAlertId || '')">停止闪烁</button>
+            <button class="mini-btn danger" @click="clearAlert(currentAlertId || '', idx)">删除</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-row">
+        <label>方向</label>
+        <div class="modal-switch">
+          <button :class="{ active: alertDirection === 'above' }" @click="alertDirection = 'above'">高于</button>
+          <button :class="{ active: alertDirection === 'below' }" @click="alertDirection = 'below'">低于</button>
+        </div>
+      </div>
+      <div class="modal-row">
+        <label>阈值</label>
+        <input type="number" v-model.number="alertInput" />
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn ghost" @click="alertModalVisible = false">取消</button>
+        <button class="modal-btn primary" @click="saveAlertConfig">保存</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -176,12 +214,19 @@ const isAlwaysOnTop = ref(true);
 const isCompactMode = ref(false);
 const watchlist = ref<WatchItem[]>([...DEFAULT_WATCHLIST]);
 
+type AlertItem = { threshold: number; direction: "above" | "below"; triggered: boolean };
 const prices = reactive<Record<string, Price>>({});
 const flashClass = reactive<Record<string, string>>({});
+const alertStates = reactive<Record<string, AlertItem[]>>({});
 const symbols = ref<SymbolItem[]>([]);
 const lastUpdate = ref("");
 const binanceWs = ref<WebSocket | null>(null);
 const okxWs = ref<WebSocket | null>(null);
+const alertModalVisible = ref(false);
+const alertInput = ref<number | null>(null);
+const alertDirection = ref<"above" | "below">("above");
+const currentAlertId = ref<string>("");
+const alertListForModal = ref<AlertItem[]>([]);
 
 // UI Helpers
 const iconUrl = (base: string) => `${ICON_BASE}${base.toUpperCase()}.svg`;
@@ -253,6 +298,59 @@ const openLink = (url: string) => {
   window.electronAPI?.openExternal?.(url);
 };
 
+// Alert modal
+const openAlertModal = (id: string) => {
+  currentAlertId.value = id;
+  const cfgList = alertStates[id] || [];
+  alertListForModal.value = [...cfgList];
+  alertInput.value = prices[id]?.last ?? null;
+  alertDirection.value = "above";
+  alertModalVisible.value = true;
+};
+
+const saveAlertConfig = () => {
+  if (!currentAlertId.value || alertInput.value === null) {
+    alertModalVisible.value = false;
+    return;
+  }
+  const list = alertStates[currentAlertId.value] || [];
+  list.push({
+    threshold: Number(alertInput.value),
+    direction: alertDirection.value,
+    triggered: false
+  });
+  alertStates[currentAlertId.value] = list;
+  alertListForModal.value = [...list];
+  saveWatchlist();
+  alertModalVisible.value = false;
+};
+
+const alertClass = (id: string) => {
+  const list = alertStates[id] || [];
+  const anyAbove = list.some(a => a.triggered && a.direction === "above");
+  const anyBelow = list.some(a => a.triggered && a.direction === "below");
+  if (anyAbove && anyBelow) return "alert-mixed";
+  if (anyAbove) return "alert-above";
+  if (anyBelow) return "alert-below";
+  return "";
+};
+
+const clearAlert = (coinId: string, idx: number) => {
+  const list = alertStates[coinId] || [];
+  list.splice(idx, 1);
+  alertStates[coinId] = [...list];
+  saveWatchlist();
+  alertListForModal.value = [...(alertStates[currentAlertId.value] || [])];
+};
+
+const acknowledgeAlerts = (coinId: string) => {
+  const list = alertStates[coinId] || [];
+  list.forEach(a => (a.triggered = false));
+  alertStates[coinId] = [...list];
+  saveWatchlist();
+  alertListForModal.value = [...(alertStates[currentAlertId.value] || [])];
+};
+
 const toggleTheme = () => {
   isDark.value = !isDark.value;
   applyTheme();
@@ -284,6 +382,13 @@ const loadWatchlist = () => {
         watchlist.value = parsed;
       }
     }
+    const savedAlerts = localStorage.getItem("cryptoWidget.alerts");
+    if (savedAlerts) {
+      const parsed = JSON.parse(savedAlerts);
+      Object.keys(parsed || {}).forEach(k => {
+        alertStates[k] = parsed[k];
+      });
+    }
   } catch (e) {
     console.error("Failed to load watchlist", e);
   }
@@ -292,6 +397,7 @@ const loadWatchlist = () => {
 const saveWatchlist = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist.value));
+    localStorage.setItem("cryptoWidget.alerts", JSON.stringify(alertStates));
   } catch (e) {
     console.error("Failed to save watchlist", e);
   }
@@ -325,6 +431,19 @@ const updatePrice = (id: string, last: number, changePct: number) => {
     setTimeout(() => delete flashClass[id], 800);
   }
   prices[id] = { last, changePct };
+
+  // Alert detection
+  const list = alertStates[id] || [];
+  list.forEach(cfg => {
+    if (cfg.direction === "below" && last <= cfg.threshold) {
+      cfg.triggered = true;
+    } else if (cfg.direction === "above" && last >= cfg.threshold) {
+      cfg.triggered = true;
+    } else {
+      cfg.triggered = false;
+    }
+  });
+
   lastUpdate.value = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
@@ -517,6 +636,27 @@ onBeforeUnmount(() => {
   border-color: #ef4444;
 }
 
+/* Alert glows */
+@keyframes alertGlowGreen {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  50% { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+}
+@keyframes alertGlowRed {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.6); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+}
+
+.alert-above {
+  border: 1px solid rgba(16, 185, 129, 0.6) !important;
+  animation: alertGlowGreen 1.4s ease-in-out infinite;
+}
+.alert-below {
+  border: 1px solid rgba(239, 68, 68, 0.6) !important;
+  animation: alertGlowRed 1.4s ease-in-out infinite;
+}
+
 /* Header */
 .widget-header {
   padding: 12px 16px;
@@ -677,6 +817,96 @@ kbd {
   border-color: var(--accent-color);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal {
+  width: 280px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+
+.modal h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: var(--text-main);
+}
+.modal-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.modal-row label {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.modal-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+}
+.modal-switch {
+  display: flex;
+  gap: 6px;
+}
+.modal-switch button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.modal-switch button.active {
+  border-color: var(--accent-color);
+  color: #0b1223;
+  background: var(--accent-color);
+  font-weight: 700;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.modal-btn.ghost:hover {
+  background: var(--card-hover);
+}
+.modal-btn.primary {
+  background: var(--accent-color);
+  color: #0b1223;
+  border-color: var(--accent-color);
+  font-weight: 700;
+}
 .ctrl-btn {
   width: 28px;
   height: 24px;
@@ -861,6 +1091,21 @@ kbd {
 .remove-btn svg {
   width: 16px;
   height: 16px;
+}
+
+.bell-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  transition: opacity 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.price-card:hover .bell-btn {
+  opacity: 1;
 }
 
 /* Footer */
