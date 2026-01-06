@@ -408,13 +408,6 @@ const loadWatchlist = () => {
         watchlist.value = parsed;
       }
     }
-    const savedAlerts = localStorage.getItem("cryptoWidget.alerts");
-    if (savedAlerts) {
-      const parsed = JSON.parse(savedAlerts);
-      Object.keys(parsed || {}).forEach(k => {
-        alertStates[k] = parsed[k];
-      });
-    }
   } catch (e) {
     console.error("Failed to load watchlist", e);
   }
@@ -423,7 +416,6 @@ const loadWatchlist = () => {
 const saveWatchlist = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist.value));
-    localStorage.setItem("cryptoWidget.alerts", JSON.stringify(alertStates));
   } catch (e) {
     console.error("Failed to save watchlist", e);
   }
